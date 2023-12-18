@@ -1,0 +1,2 @@
+evo_traj kitti /root/workspace/result/04_12_path/vio.txt --ref=/data/kitti/sequences/04/04.txt -p --plot_mode=xz
+# evo_traj kitti /root/workspace/src/evo/test/data/KITTI_00_ORB.txt --ref=/root/workspace/src/evo/test/data/KITTI_00_gt.txt -p --plot_mode=xz
