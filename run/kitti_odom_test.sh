@@ -1,0 +1,1 @@
+rosrun vins kitti_odom_test /root/workspace/src/vins_fusion_noetic/config/kitti_odom/kitti_config13-21.yaml /data/kitti/sequences/00/

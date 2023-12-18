@@ -7,7 +7,7 @@ num_of_cam: 2
 imu_topic: ""
 image0_topic: "/leftImage"
 image1_topic: "/rightImage"
-output_path: "/home/tony-ws1/output/"
+output_path: "/root/workspace/result/03_path/"
 
 cam0_calib: "cam03.yaml"
 cam1_calib: "cam03.yaml"
@@ -39,6 +39,9 @@ body_T_cam1: !!opencv-matrix
 
 #Multiple thread support
 multiple_thread: 0
+
+# dynamic object remove
+dynamic_remove: false
 
 #feature traker paprameters
 max_cnt: 200            # max feature number in feature tracking

@@ -45,7 +45,26 @@ int MIN_DIST;
 double F_THRESHOLD;
 int SHOW_TRACK;
 int FLOW_BACK;
+bool B_DYNAMIC_REMOVE;
 
+namespace cv
+{
+// Define a new bool reader in order to accept "true/false"-like values.
+void read_bool(const cv::FileNode &node, bool &value, const bool &default_value)
+{
+  std::string s(static_cast<std::string>(node));
+  if(s=="y"||s=="Y"||s=="yes"||s=="Yes"||s=="YES"||s=="true"||s=="True"||s=="TRUE"||s=="on"||s=="On"||s=="ON")
+    {value=true; return;}
+  if(s=="n"||s=="N"||s=="no"||s=="No"||s=="NO"||s=="false"||s=="False"||s=="FALSE"||s=="off"||s=="Off"||s=="OFF")
+    {value=false; return;}
+  value= static_cast<int>(node);
+}
+// Specialize cv::operator>> for bool.
+template<> inline void operator >> (const cv::FileNode& n, bool& value)
+{
+  read_bool(n, value, false);
+}
+} // cv
 
 template <typename T>
 T readParam(ros::NodeHandle &n, std::string name)
@@ -82,6 +101,7 @@ void readParameters(std::string config_file)
     fsSettings["image0_topic"] >> IMAGE0_TOPIC;
     fsSettings["image1_topic"] >> IMAGE1_TOPIC;
     MAX_CNT = fsSettings["max_cnt"];
+    fsSettings["dynamic_remove"] >> B_DYNAMIC_REMOVE;
     MIN_DIST = fsSettings["min_dist"];
     F_THRESHOLD = fsSettings["F_threshold"];
     SHOW_TRACK = fsSettings["show_track"];
