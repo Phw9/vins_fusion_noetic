@@ -196,9 +196,19 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
         //printf("feature cnt after add %d\n", (int)ids.size());
     }
 
+    vector<uchar> velocity_status;
     cur_un_pts = undistortedPts(cur_pts, m_camera[0]);
-    pts_velocity = ptsVelocity(ids, cur_un_pts, cur_un_pts_map, prev_un_pts_map);
-
+    pts_velocity = ptsVelocity(ids, cur_un_pts, cur_un_pts_map, prev_un_pts_map, 
+                               velocity_status, cur_pts, prevLeftPtsMap, solution);
+    /*
+    phw calculate velocity solution
+    if(can't find solution) {
+        calculate average of velocity
+        and rejection std > x
+    } else {
+        velocity * 
+    }
+    */
     if(!_img1.empty() && stereo_cam)
     {
         ids_right.clear();
@@ -238,13 +248,15 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
             reduceVector(cur_un_pts, status);
             reduceVector(pts_velocity, status);
             */
+            vector<uchar> right_velocity_status;
             cur_un_right_pts = undistortedPts(cur_right_pts, m_camera[1]);
-            right_pts_velocity = ptsVelocity(ids_right, cur_un_right_pts, cur_un_right_pts_map, prev_un_right_pts_map);
+            right_pts_velocity = ptsVelocity(ids_right, cur_un_right_pts, cur_un_right_pts_map, prev_un_right_pts_map, 
+                                             right_velocity_status, cur_right_pts, prevLeftPtsMap, right_solution);
         }
         prev_un_right_pts_map = cur_un_right_pts_map;
     }
     if(SHOW_TRACK)
-        drawTrack(cur_img, rightImg, ids, cur_pts, cur_right_pts, prevLeftPtsMap);
+        drawTrack(cur_img, rightImg, ids, cur_pts, cur_right_pts, prevLeftPtsMap, solution);
 
     prev_img = cur_img;
     prev_pts = cur_pts;
@@ -254,6 +266,7 @@ map<int, vector<pair<int, Eigen::Matrix<double, 7, 1>>>> FeatureTracker::trackIm
     hasPrediction = false;
 
     prevLeftPtsMap.clear();
+    prevRightPtsMap.clear();
     for(size_t i = 0; i < cur_pts.size(); i++)
         prevLeftPtsMap[ids[i]] = cur_pts[i];
 
@@ -401,34 +414,73 @@ vector<cv::Point2f> FeatureTracker::undistortedPts(vector<cv::Point2f> &pts, cam
     return un_pts;
 }
 
+bool findLeastSquares(const MatrixXd& lines, VectorXd& leastSquaresPoint) {
+    MatrixXd A = lines.leftCols(2);
+    VectorXd b = lines.col(2);
+
+    leastSquaresPoint = A.jacobiSvd(ComputeThinU | ComputeThinV).solve(b);
+    A = A*A.transpose();
+    return A.determinant() != 0;
+}
+
 vector<cv::Point2f> FeatureTracker::ptsVelocity(vector<int> &ids, vector<cv::Point2f> &pts, 
-                                            map<int, cv::Point2f> &cur_id_pts, map<int, cv::Point2f> &prev_id_pts)
+                                            map<int, cv::Point2f> &cur_id_pts, map<int, cv::Point2f> &prev_id_pts,
+                                            vector<uchar> &velo_status, vector<cv::Point2f> &cur_pts, map<int, cv::Point2f> prevPtsMap, VectorXd &leastSquaresPoint)
 {
     vector<cv::Point2f> pts_velocity;
     cur_id_pts.clear();
     for (unsigned int i = 0; i < ids.size(); i++)
     {
         cur_id_pts.insert(make_pair(ids[i], pts[i]));
+        velo_status.push_back(ids[i]);
     }
-
+    double avg_v_x = 0;
+    double avg_v_y = 0;
+    int velo_num = 0;
     // caculate points velocity
     if (!prev_id_pts.empty())
     {
         double dt = cur_time - prev_time;
         
+        MatrixXd lines(0, 3);
         for (unsigned int i = 0; i < pts.size(); i++)
         {
             std::map<int, cv::Point2f>::iterator it;
+            std::map<int, cv::Point2f>::iterator pts_it;
             it = prev_id_pts.find(ids[i]);
+            pts_it = prevPtsMap.find(ids[i]);
             if (it != prev_id_pts.end())
             {
+                velo_num++;
+                lines.conservativeResize(lines.rows() + 1, NoChange);
+                
                 double v_x = (pts[i].x - it->second.x) / dt;
                 double v_y = (pts[i].y - it->second.y) / dt;
+                avg_v_x = (avg_v_x * (velo_num-1) + v_x) / velo_num;
+                avg_v_y = (avg_v_y * (velo_num-1) + v_y) / velo_num;
+                
+                double b = v_x*cur_pts[i].x + v_y*cur_pts[i].y;
+                lines.row(lines.rows() - 1) << v_x, v_y, b;
+                
+                // double pts_v_x = -(pts[i].x - pts_it->second.x) / dt;
+                // double pts_v_y = -(pts[i].y - pts_it->second.y) / dt;
+                // double b = pts_v_x*cur_pts[i].x + pts_v_y*cur_pts[i].y;
+                // lines.row(lines.rows() - 1) << pts_v_x, pts_v_y, b;
+                
+                // std::cout << "pts: (" << cur_pts[i].x << "," << cur_pts[i].y << ")" << std::endl;
+                // std::cout << "rows: " << lines.rows() << lines.row(lines.rows() - 1) << std::endl;
                 pts_velocity.push_back(cv::Point2f(v_x, v_y));
             }
             else
                 pts_velocity.push_back(cv::Point2f(0, 0));
-
+        }
+        if(B_DYNAMIC_REMOVE) {
+            std::cout << "avg_vxy: (" << avg_v_x << "," << avg_v_y << ")" << std::endl;
+            if(findLeastSquares(lines, leastSquaresPoint)) {
+                std::cout << "find leastSquares: " << leastSquaresPoint.transpose() << std::endl;
+            } else {
+                std::cout << "can't find leastSquares: " << leastSquaresPoint.transpose() << std::endl;
+            }
         }
     }
     else
@@ -445,7 +497,8 @@ void FeatureTracker::drawTrack(const cv::Mat &imLeft, const cv::Mat &imRight,
                                vector<int> &curLeftIds,
                                vector<cv::Point2f> &curLeftPts, 
                                vector<cv::Point2f> &curRightPts,
-                               map<int, cv::Point2f> &prevLeftPtsMap)
+                               map<int, cv::Point2f> &prevLeftPtsMap,
+                               VectorXd &solution)
 {
     //int rows = imLeft.rows;
     int cols = imLeft.cols;
@@ -454,6 +507,15 @@ void FeatureTracker::drawTrack(const cv::Mat &imLeft, const cv::Mat &imRight,
     else
         imTrack = imLeft.clone();
     cv::cvtColor(imTrack, imTrack, cv::COLOR_GRAY2RGB);
+    if(B_DYNAMIC_REMOVE) {
+        if(solution.size() == 2) {
+            cv::Point2f cv_solution(solution(0), solution(1));
+            std::cout << "cv_solution: " << cv_solution.x << "," << cv_solution.y << std::endl;
+            cv::String sol_coord = "(" + to_string(int(cv_solution.x)) + "," + to_string(int(cv_solution.y)) + ")";
+            cv::putText(imTrack, sol_coord, cv_solution, 2, 1, cv::Scalar(0, 0, 255), 1);
+            cv::circle(imTrack, cv_solution, 4, cv::Scalar(0, 255, 0), 6);
+        }
+    }
 
     for (size_t j = 0; j < curLeftPts.size(); j++)
     {
@@ -480,6 +542,7 @@ void FeatureTracker::drawTrack(const cv::Mat &imLeft, const cv::Mat &imRight,
         if(mapIt != prevLeftPtsMap.end())
         {
             cv::arrowedLine(imTrack, curLeftPts[i], mapIt->second, cv::Scalar(0, 255, 0), 1, 8, 0, 0.2);
+            // cv::arrowedLine(imTrack, mapIt->second, curLeftPts[i], cv::Scalar(0, 255, 0), 1, 8, 0, 0.2);
         }
     }
 

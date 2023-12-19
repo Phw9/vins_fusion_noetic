@@ -45,14 +45,16 @@ public:
     void undistortedPoints();
     vector<cv::Point2f> undistortedPts(vector<cv::Point2f> &pts, camodocal::CameraPtr cam);
     vector<cv::Point2f> ptsVelocity(vector<int> &ids, vector<cv::Point2f> &pts, 
-                                    map<int, cv::Point2f> &cur_id_pts, map<int, cv::Point2f> &prev_id_pts);
+                                    map<int, cv::Point2f> &cur_id_pts, map<int, cv::Point2f> &prev_id_pts, 
+                                    vector<uchar> &velo_status, vector<cv::Point2f> &cur_pts, map<int, cv::Point2f> prevPtsMap, VectorXd &leastSquaresPoint);
     void showTwoImage(const cv::Mat &img1, const cv::Mat &img2, 
                       vector<cv::Point2f> pts1, vector<cv::Point2f> pts2);
     void drawTrack(const cv::Mat &imLeft, const cv::Mat &imRight, 
                                    vector<int> &curLeftIds,
                                    vector<cv::Point2f> &curLeftPts, 
                                    vector<cv::Point2f> &curRightPts,
-                                   map<int, cv::Point2f> &prevLeftPtsMap);
+                                   map<int, cv::Point2f> &prevLeftPtsMap,
+                                   VectorXd &solution);
     void setPrediction(map<int, Eigen::Vector3d> &predictPts);
     double distance(cv::Point2f &pt1, cv::Point2f &pt2);
     void removeOutliers(set<int> &removePtsIds);
@@ -70,11 +72,14 @@ public:
     vector<cv::Point2f> prev_pts, cur_pts, cur_right_pts;
     vector<cv::Point2f> prev_un_pts, cur_un_pts, cur_un_right_pts;
     vector<cv::Point2f> pts_velocity, right_pts_velocity;
+    VectorXd solution;
+    VectorXd right_solution;
     vector<int> ids, ids_right;
     vector<int> track_cnt;
     map<int, cv::Point2f> cur_un_pts_map, prev_un_pts_map;
     map<int, cv::Point2f> cur_un_right_pts_map, prev_un_right_pts_map;
     map<int, cv::Point2f> prevLeftPtsMap;
+    map<int, cv::Point2f> prevRightPtsMap;
     vector<camodocal::CameraPtr> m_camera;
     double cur_time;
     double prev_time;

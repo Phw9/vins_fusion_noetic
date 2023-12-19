@@ -40,7 +40,7 @@ body_T_cam1: !!opencv-matrix
 multiple_thread: 0
 
 # dynamic object remove
-dynamic_remove: false
+dynamic_remove: true
 
 #feature traker paprameters
 max_cnt: 200            # max feature number in feature tracking
